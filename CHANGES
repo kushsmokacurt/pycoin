@@ -1,3 +1,25 @@
+0.92.20230326
+-------------
+
+* fixed https://github.com/richardkiss/pycoin/issues/361
+
+0.92.20220529
+-------------
+
+* support ubuntu-22 with python implementation of ripemd160
+
+0.92.20220213
+-------------
+
+* fix disassembly bug for `OP_X` for X>1
+* fix litecoin testnet p2sh addresses
+
+0.92.20220212
+-------------
+
+* add (beta) support for pay-to-taproot (P2TR)
+* add support for Groestlcoin testnet and regtest
+
 0.91.20210515
 -------------
 

@@ -71,7 +71,7 @@ def check_fees(tx):
               file=sys.stderr)
     elif actual_tx_fee < recommended_tx_fee:
         print("warning: transaction fee lower than (casually calculated)"
-              " expected value of %s mBTC, transaction might not propogate" %
+              " expected value of %s mBTC, transaction might not propagate" %
               satoshi_to_mbtc(recommended_tx_fee), file=sys.stderr)
     return actual_tx_fee
 
@@ -687,7 +687,7 @@ def tx(args, parser):
 
     tx_db = cache_result(tx, tx_db, args.cache, network)
 
-    tx_db = validate_against_bitcoind(tx, tx_db, args.network, args.bitcoind_url)
+    tx_db = validate_against_bitcoind(tx, tx_db, network, args.bitcoind_url)
 
     if args.dump_inputs:
         dump_inputs(tx, network)

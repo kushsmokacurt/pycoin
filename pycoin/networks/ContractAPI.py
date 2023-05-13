@@ -50,6 +50,9 @@ class ContractAPI(object):
     def for_p2s_wit(self, underlying_script):
         return self.for_p2sh_wit(hashlib.sha256(underlying_script).digest())
 
+    def for_p2tr(self, synthetic_key):
+        return self.for_info(dict(type="p2tr", synthetic_key=synthetic_key))
+
     def match(self, template_disassembly, script):
         template = self._script_tools.compile(template_disassembly)
         r = collections.defaultdict(list)
@@ -59,7 +62,7 @@ class ContractAPI(object):
                 return r
             if pc1 >= len(script) or pc2 >= len(template):
                 break
-            opcode1, data1, pc1, is_ok2 = self._script_tools.scriptStreamer.get_opcode(script, pc1)
+            opcode1, data1, pc1, is_ok1 = self._script_tools.scriptStreamer.get_opcode(script, pc1)
             opcode2, data2, pc2, is_ok2 = self._script_tools.scriptStreamer.get_opcode(template, pc2)
             l1 = 0 if data1 is None else len(data1)
             if data2 == b'PUBKEY':
@@ -76,6 +79,10 @@ class ContractAPI(object):
                 r["SEGWIT_LIST"].append(data1)
             elif data2 == b'DATA':
                 r["DATA_LIST"].append(data1)
+            elif data2 == b'SYNTHETIC_KEY':
+                if l1 != 32:
+                    break
+                r["SYNTHETIC_KEY"].append(data1)
             elif (opcode1, data1) != (opcode2, data2):
                 break
         return None
@@ -86,6 +93,7 @@ class ContractAPI(object):
         p2pkh_wit=lambda info: "OP_0 %s" % b2h(info.get("hash160")),
         p2sh=lambda info: "OP_HASH160 %s OP_EQUAL" % b2h(info.get("hash160")),
         p2sh_wit=lambda info: "OP_0 %s" % b2h(info.get("hash256")),
+        p2tr=lambda info: "OP_1 %s" % b2h(info.get("synthetic_key")),
         multisig=lambda info: "%d %s %d OP_CHECKMULTISIG" % (
             info.get("m"), " ".join(b2h(sk) for sk in info.get("sec_keys")), len(info.get("sec_keys"))),
     )
@@ -126,6 +134,11 @@ class ContractAPI(object):
         d = self.match("'PUBKEY' OP_CHECKSIG", script)
         if d:
             return dict(type="p2pk", sec=d["PUBKEY_LIST"][0])
+
+        d = self.match("OP_1 'SYNTHETIC_KEY'", script)
+        if d:
+            if len(d["SYNTHETIC_KEY"][0]) == 32:
+                return dict(type="p2tr", synthetic_key=d["SYNTHETIC_KEY"][0])
 
         if self._script_tools.compile("OP_RETURN") == script[:1]:
             return dict(type="nulldata", data=script[1:])

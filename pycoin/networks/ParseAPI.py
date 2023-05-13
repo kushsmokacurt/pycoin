@@ -1,6 +1,6 @@
 from .parseable_str import parse_b58_double_sha256, parse_bech32, parse_colon_prefix, parseable_str
 
-from pycoin.contrib import segwit_addr
+from pycoin.contrib import bech32m
 from pycoin.encoding.bytes32 import from_bytes_32
 from pycoin.intbytes import int2byte
 from pycoin.encoding.hexbytes import b2h, h2b
@@ -217,18 +217,25 @@ class ParseAPI(object):
         script_info = self._network.contract.info_for_script(script)
         return Contract(script_info, self._network)
 
-    def _segwit(self, s, blob_len, segwit_attr):
+    def _bech32m(self, s, expected_version, blob_len, segwit_attr):
+        v = parse_bech32(s)
+        if v is None:
+            return None
+        (hr_prefix, version, decoded_data, spec) = v
+
         script_f = getattr(self._network.contract, segwit_attr, None)
         if script_f is None:
             return None
-        pair = parse_bech32(s)
-        if pair is None or pair[0] != self._bech32_hrp or pair[1] is None:
+
+        if hr_prefix != self._bech32_hrp:
             return None
-        data = pair[1]
-        version_byte = int2byte(data[0])
-        decoded = segwit_addr.convertbits(data[1:], 5, 8, False)
-        decoded_data = b''.join(int2byte(d) for d in decoded)
-        if version_byte != b'\0' or len(decoded_data) != blob_len:
+        if len(decoded_data) != blob_len:
+            return None
+        if expected_version != version:
+            return None
+        if version == 0 and spec != bech32m.Encoding.BECH32:
+            return None
+        if version != 0 and spec != bech32m.Encoding.BECH32M:
             return None
         script = script_f(decoded_data)
         script_info = self._network.contract.info_for_script(script)
@@ -239,14 +246,21 @@ class ParseAPI(object):
         Parse a pay-to-pubkey-hash segwit address.
         Return a :class:`Contract <pycoin.networks.Contract.Contract>` or None.
         """
-        return self._segwit(s, 20, "for_p2pkh_wit")
+        return self._bech32m(s, 0, 20, "for_p2pkh_wit")
 
     def p2sh_segwit(self, s):
         """
         Parse a pay-to-script-hash segwit address.
         Return a :class:`Contract <pycoin.networks.Contract.Contract>` or None.
         """
-        return self._segwit(s, 32, "for_p2sh_wit")
+        return self._bech32m(s, 0, 32, "for_p2sh_wit")
+
+    def p2tr(self, s):
+        """
+        Parse a pay-to-taproot segwit address.
+        Return a :class:`Contract <pycoin.networks.Contract.Contract>` or None.
+        """
+        return self._bech32m(s, 1, 32, "for_p2tr")
 
     # payable (+ all address types)
     def script(self, s):
@@ -345,7 +359,10 @@ class ParseAPI(object):
         Return a :class:`Contract <pycoin.networks.Contract.Contract>`, or None.
         """
         s = parseable_str(s)
-        return self.p2pkh(s) or self.p2sh(s) or self.p2pkh_segwit(s) or self.p2sh_segwit(s)
+        return (
+            self.p2pkh(s) or self.p2sh(s) or self.p2pkh_segwit(s) or self.p2sh_segwit(s)
+            or self.p2tr(s)
+        )
 
     def payable(self, s):
         """
